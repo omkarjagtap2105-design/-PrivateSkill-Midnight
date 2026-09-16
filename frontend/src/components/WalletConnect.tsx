@@ -20,28 +20,6 @@ export function WalletConnect({
   connect,
   disconnect,
 }: WalletConnectProps) {
-  const laceInstalled = typeof window !== 'undefined' && !!window.midnight?.mnLace
-
-  if (!laceInstalled && connectionState === 'disconnected') {
-    return (
-      <div className="wallet-panel wallet-panel--not-installed">
-        <span className="wallet-icon">🌑</span>
-        <p className="wallet-msg">
-          Lace wallet not detected.{' '}
-          <a
-            href="https://www.lace.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="wallet-link"
-          >
-            Install Lace
-          </a>{' '}
-          to connect.
-        </p>
-      </div>
-    )
-  }
-
   if (connectionState === 'connected' && walletAddress) {
     return (
       <div className="wallet-panel wallet-panel--connected">
@@ -81,7 +59,12 @@ export function WalletConnect({
     )
   }
 
-  // Default: disconnected
+  // Default: disconnected — always show Connect button.
+  // The Midnight dapp connector (window.midnight.mnLace) is injected by the
+  // Midnight-enabled Lace build. We don't gate the button on detection at
+  // render time because the extension may inject after the React tree mounts.
+  // If the connector is absent at click time, connect() will surface a clear
+  // error message explaining what the user needs to do.
   return (
     <div className="wallet-panel wallet-panel--disconnected">
       <button className="btn btn--primary" onClick={connect}>

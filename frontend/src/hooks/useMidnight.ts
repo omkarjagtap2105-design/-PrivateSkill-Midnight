@@ -60,15 +60,31 @@ export function useMidnight(): UseMidnightReturn {
     setError(null)
     setConnectionState('connecting')
 
-    // Check Lace is installed
-    if (!window.midnight?.mnLace) {
-      setError('Lace wallet not detected. Please install the Lace browser extension.')
+    // Wait up to 1 second for the Midnight dapp connector to inject.
+    // Some browsers/extensions inject window.midnight.mnLace asynchronously
+    // after page load. This polling loop catches late injections.
+    let lace = window.midnight?.mnLace
+    if (!lace) {
+      for (let i = 0; i < 10; i++) {
+        await sleep(100)
+        lace = window.midnight?.mnLace
+        if (lace) break
+      }
+    }
+
+    if (!lace) {
+      setError(
+        'Midnight dapp connector not found. ' +
+        'Make sure you are using the Midnight-enabled Lace build ' +
+        '(install from https://docs.midnight.network) and that the ' +
+        'extension is enabled on this page.'
+      )
       setConnectionState('error')
       return
     }
 
     try {
-      const api = await window.midnight.mnLace.enable()
+      const api = await lace.enable()
       const state = await api.state()
 
       const address = state.address ?? state.coinPublicKey ?? null
@@ -116,8 +132,9 @@ export function useMidnight(): UseMidnightReturn {
 
   const verifyThreshold = useCallback(
     async (credentialCommitment: string, threshold: number): Promise<boolean | null> => {
-      if (!window.midnight?.mnLace) {
-        setError('Lace wallet not detected.')
+      const lace = window.midnight?.mnLace
+      if (!lace) {
+        setError('Midnight dapp connector not found. Please connect your Lace wallet first.')
         return null
       }
 
