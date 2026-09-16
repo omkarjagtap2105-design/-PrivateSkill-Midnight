@@ -1,6 +1,6 @@
 # PrivateSkill — Privacy-Preserving Credential Verification on Midnight Network
 
-[![CI](https://github.com/omkarb/PrivateSkill-Midnight/actions/workflows/ci.yml/badge.svg)](https://github.com/omkarb/PrivateSkill-Midnight/actions/workflows/ci.yml)
+[![CI](https://github.com/omkarjagtap2105-design/-PrivateSkill-Midnight/actions/workflows/ci.yml/badge.svg)](https://github.com/omkarjagtap2105-design/-PrivateSkill-Midnight/actions/workflows/ci.yml)
 
 > Prove your skills meet the bar — without revealing your score.
 
@@ -103,8 +103,8 @@ The flow:
 
 ```bash
 # 1. Clone and install root dependencies
-git clone https://github.com/omkarb/PrivateSkill-Midnight
-cd PrivateSkill-Midnight
+git clone https://github.com/omkarjagtap2105-design/-PrivateSkill-Midnight
+cd -PrivateSkill-Midnight
 npm install
 
 # 2. Start the local devnet (node + indexer + proof-server)
