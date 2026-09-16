@@ -6,9 +6,9 @@
 
 ## Live Demo
 
-🔗 **[Live Demo — deploy frontend to Vercel and update this link]**
+🔗 **[https://privateskill-midnight.vercel.app](https://privateskill-midnight.vercel.app)**
 
-> To deploy: `cd frontend && npm run build` then `npx vercel --prod`
+> Auto-deploys on every push via Vercel + GitHub integration.
 
 ## Demo Video
 
