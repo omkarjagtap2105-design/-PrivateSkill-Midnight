@@ -1,0 +1,310 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PrivateSkill — Privacy-Preserving Credential & Skill Verification
+// -----------------------------------------------------------------------------
+// Midnight / Compact smart contract for the PrivateSkill platform.
+//
+// PRIVACY MODEL
+// -------------
+//   * The public ledger NEVER stores names, emails, exact scores, full
+//     certificates, or any personal metadata.
+//   * A credential's private attributes (certificate id, holder id, exact
+//     score) are bound into a single commitment computed with
+//     persistentCommit (SHA-256 based). Only the commitment is published.
+//   * Circuit parameters are the *private inputs* to the zero-knowledge
+//     proof. When the student responds to a verification request, the exact
+//     score is re-supplied privately, the commitment is recomputed inside the
+//     circuit and checked against the public value, and ONLY the boolean
+//     result ("score >= threshold?") is disclosed to the ledger.
+//   * `disclose(...)` is used exclusively for values that are intentionally
+//     public (skill id, credential type, timestamps, issuer id, threshold).
+//     The compiler rejects any attempt to store witness-derived data on the
+//     ledger without an explicit `disclose` — privacy by default.
+//
+// ROLES
+// -----
+//   * Admin (contract owner):     authorizes / revokes issuers.
+//   * Issuer (institution):       issues and revokes credentials.
+//   * Holder (student):           generates privacy-preserving proofs.
+//   * Verifier (employer):        creates verification requests.
+//
+// ACCESS CONTROL
+// --------------
+// Identity is a domain-separated hash of a secret key. The secret key is a
+// circuit parameter (a ZK witness) — it never leaves the prover's machine.
+// Proving knowledge of the key that matches a stored identity is how the
+// contract enforces "only the admin may authorize issuers" and "only an
+// authorized issuer may issue credentials".
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Private credential secret ────────────────────────────────────────────────
+// The fields a credential binds. This struct NEVER appears on the ledger.
+// The holder must know every field AND the random 32-byte `opening` to
+// re-derive the commitment. Knowledge of the opening is what lets the
+// holder prove possession of the credential without revealing it.
+struct CredentialSecret {
+    certificateId: Bytes<32>;  // the certificate's unique id (hashed)
+    holderId: Bytes<32>;       // the holder's identity (hashed)
+    score: Uint<16>;           // the exact score (0..65535) — NEVER disclosed
+}
+
+// ─── Public credential record ─────────────────────────────────────────────────
+// Everything here is intentionally public. No private attributes.
+struct CredentialRecord {
+    skill: Bytes<32>;           // domain-separated id of the skill, e.g. id("blockchain")
+    credentialType: Bytes<32>;  // domain-separated id of the type, e.g. id("certificate")
+    issuer: Bytes<32>;          // the issuing institution's public id
+    issuedAt: Uint<64>;         // issue timestamp (unix seconds)
+    expiresAt: Uint<64>;        // expiry timestamp (unix seconds)
+    revoked: Boolean;           // flipped by the issuer when revoked
+}
+
+// ─── Public verification request ──────────────────────────────────────────────
+// Created by a verifier. Carries no private data. The `result` field is
+// `none` while pending and becomes `some(true|false)` once the holder
+// answers with a zero-knowledge proof. The verifier reads this record and
+// sees ONLY the boolean outcome — never the underlying score.
+struct VerificationRequest {
+    requiredSkill: Bytes<32>;      // skill the credential must match
+    requiredCredentialType: Bytes<32>; // type the credential must match
+    threshold: Uint<16>;           // minimum score requirement
+    verifier: Bytes<32>;           // the requesting verifier's public id
+    result: Maybe<Boolean>;        // none = pending, some(_) = answered
+}
+
+// ─── Public ledger state ──────────────────────────────────────────────────────
+export sealed ledger owner: Bytes<32>;                          // admin identity
+export ledger authorizedIssuers: Set<Bytes<32>>;                // issuers allowed to issue
+export ledger credentials: Map<Bytes<32>, CredentialRecord>;    // commitment -> record
+export ledger credentialCount: Counter;                         // number of credentials issued
+export ledger requests: Map<Bytes<32>, VerificationRequest>;    // requestId -> request
+export ledger requestCount: Counter;                            // number of requests created
+
+// ─── Constructor ──────────────────────────────────────────────────────────────
+// Takes the admin's public identity (a domain-separated hash of the admin
+// secret key, computed off-chain). `sealed`: immutable after deployment.
+constructor(ownerId: Bytes<32>) {
+    owner = disclose(ownerId);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Domain-separated identity hash. `domain` is a fixed namespace prefix
+// (see the domain separators below) and `value` the secret being hashed.
+circuit domainHash(domain: Bytes<32>, value: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([domain, value]);
+}
+
+// The public identity for a given role secret key.
+circuit issuerId(issuerKey: Bytes<32>): Bytes<32> {
+    return domainHash(pad(32, "privateskill:issuer:v1"), issuerKey);
+}
+
+circuit ownerId(ownerKey: Bytes<32>): Bytes<32> {
+    return domainHash(pad(32, "privateskill:owner:v1"), ownerKey);
+}
+
+// ─── Admin: issuer registry ───────────────────────────────────────────────────
+
+// Only the contract owner may authorize an issuer. The caller proves they
+// are the owner by supplying the owner's secret key (a private witness);
+// the circuit re-derives the owner identity and compares it to the sealed
+// `owner` field.
+export circuit registerIssuer(ownerKey: Bytes<32>, issuerKey: Bytes<32>): [] {
+    assert(ownerId(ownerKey) == owner, "Only the contract owner can authorize issuers");
+    authorizedIssuers.insert(disclose(issuerId(issuerKey)));
+    return;
+}
+
+// Admin: revoke an issuer's authorization.
+export circuit revokeIssuer(ownerKey: Bytes<32>, issuerKey: Bytes<32>): [] {
+    assert(ownerId(ownerKey) == owner, "Only the contract owner can revoke issuers");
+    authorizedIssuers.remove(disclose(issuerId(issuerKey)));
+    return;
+}
+
+// ─── Issuer: credential issuance & revocation ─────────────────────────────────
+
+// An authorized issuer registers a new credential. The sensitive fields
+// (certificateId, holderId, score) are folded into a commitment using
+// persistentCommit and only the commitment is stored on-chain.
+//
+// The random `opening` is generated by the issuer, used once, and delivered
+// to the holder out-of-band. It is the credential's "private key": only
+// someone who knows every private field AND the opening can later re-derive
+// the commitment and therefore answer a verification request.
+//
+// Returns the on-chain credential commitment (the credential's public id).
+export circuit issueCredential(
+    issuerKey: Bytes<32>,        // private: the issuing institution's secret key
+    certificateId: Bytes<32>,    // private: hashed certificate id
+    holderId: Bytes<32>,         // private: hashed holder identity
+    score: Uint<16>,             // private: exact score — never revealed
+    opening: Bytes<32>,          // private: one-time random commitment opening
+    skill: Bytes<32>,            // public:  domain-separated skill id
+    credentialType: Bytes<32>,   // public:  domain-separated type id
+    issuedAt: Uint<64>,          // public:  issue timestamp
+    expiresAt: Uint<64>,         // public:  expiry timestamp
+): Bytes<32> {
+    // Access control: only an authorized issuer may issue. `disclose` is
+    // required because the issuer id is a hash of a witness and its
+    // membership is checked against the public issuer registry.
+    assert(authorizedIssuers.member(disclose(issuerId(issuerKey))), "Issuer is not authorized");
+
+    // Hygiene: expiry must be after issuance and the credential must not
+    // already be expired at issue time. `disclose` acknowledges that the
+    // expiry comparison is intentionally made public by the issuer.
+    assert(expiresAt > issuedAt, "Expiry must be after the issue date");
+    assert(!blockTimeGte(disclose(expiresAt)), "Cannot issue an already-expired credential");
+
+    // Bind the private fields into a single commitment.
+    const commitment = persistentCommit<CredentialSecret>(
+        CredentialSecret {
+            certificateId: certificateId,
+            holderId: holderId,
+            score: score,
+        },
+        opening,
+    );
+
+    assert(!credentials.member(commitment), "Credential already registered");
+
+    credentials.insert(disclose(commitment), CredentialRecord {
+        skill: disclose(skill),
+        credentialType: disclose(credentialType),
+        issuer: disclose(issuerId(issuerKey)),
+        issuedAt: disclose(issuedAt),
+        expiresAt: disclose(expiresAt),
+        revoked: false,
+    });
+    credentialCount.increment(1);
+    return disclose(commitment);
+}
+
+// The issuing issuer revokes a credential. Revocation is public state so any
+// verifier will see that the credential no longer verifies.
+export circuit revokeCredential(issuerKey: Bytes<32>, credentialCommitment: Bytes<32>): [] {
+    assert(authorizedIssuers.member(disclose(issuerId(issuerKey))), "Issuer is not authorized");
+    assert(credentials.member(disclose(credentialCommitment)), "Credential not found");
+    const record = credentials.lookup(disclose(credentialCommitment));
+    assert(record.issuer == issuerId(issuerKey), "Only the issuing issuer can revoke this credential");
+    credentials.insert(disclose(credentialCommitment), CredentialRecord {
+        skill: record.skill,
+        credentialType: record.credentialType,
+        issuer: record.issuer,
+        issuedAt: record.issuedAt,
+        expiresAt: record.expiresAt,
+        revoked: true,
+    });
+    return;
+}
+
+// ─── Verifier: verification requests ──────────────────────────────────────────
+
+// A verifier records what they want proven. All fields are public by design:
+// the request itself contains no private information. The student's answer
+// (a boolean) is later recorded on this record via respondToVerification.
+export circuit createVerificationRequest(
+    requestId: Bytes<32>,        // public: a fresh unique request id
+    verifierId: Bytes<32>,       // public: the verifier's public id
+    requiredSkill: Bytes<32>,    // public: skill that must match
+    requiredCredentialType: Bytes<32>, // public: type that must match
+    threshold: Uint<16>,         // public: minimum score requirement
+): [] {
+    assert(!requests.member(disclose(requestId)), "Request id already used");
+    requests.insert(disclose(requestId), VerificationRequest {
+        requiredSkill: disclose(requiredSkill),
+        requiredCredentialType: disclose(requiredCredentialType),
+        threshold: disclose(threshold),
+        verifier: disclose(verifierId),
+        result: none<Boolean>(),
+    });
+    requestCount.increment(1);
+    return;
+}
+
+// ─── Holder: privacy-preserving answers ───────────────────────────────────────
+
+// The heart of the platform. The holder answers a verification request with a
+// zero-knowledge proof that their chosen credential is valid, that its skill
+// and type match the request, and that its exact score meets the threshold —
+// WITHOUT revealing the score, the certificate id, or the holder identity.
+//
+//   private inputs:  certificateId, holderId, score, opening
+//   public output:   a single boolean recorded on the request.
+export circuit respondToVerification(
+    requestId: Bytes<32>,        // public: the request being answered
+    certificateId: Bytes<32>,    // private: hashed certificate id
+    holderId: Bytes<32>,         // private: hashed holder identity
+    score: Uint<16>,             // private: exact score — never revealed
+    opening: Bytes<32>,          // private: the credential's commitment opening
+): Boolean {
+    assert(requests.member(disclose(requestId)), "Request not found");
+    const request = requests.lookup(disclose(requestId));
+    assert(!request.result.is_some, "Request has already been answered");
+
+    // Re-derive the commitment from the private fields and prove it matches
+    // the credential the holder chose to answer with.
+    const commitment = persistentCommit<CredentialSecret>(
+        CredentialSecret {
+            certificateId: certificateId,
+            holderId: holderId,
+            score: score,
+        },
+        opening,
+    );
+
+    assert(credentials.member(commitment), "Credential is not registered");
+    const record = credentials.lookup(commitment);
+
+    // The credential must satisfy the request's conditions...
+    assert(record.skill == request.requiredSkill, "Credential skill does not match the request");
+    assert(record.credentialType == request.requiredCredentialType, "Credential type does not match the request");
+    assert(!record.revoked, "Credential has been revoked");
+    assert(!blockTimeGte(record.expiresAt), "Credential has expired");
+    assert(authorizedIssuers.member(record.issuer), "Issuing institution is not authorized");
+
+    // ... and the private score must meet the public threshold. Only the
+    // boolean is disclosed; the exact score stays private.
+    const passed = disclose(score >= request.threshold);
+
+    requests.insert(disclose(requestId), VerificationRequest {
+        requiredSkill: request.requiredSkill,
+        requiredCredentialType: request.requiredCredentialType,
+        threshold: request.threshold,
+        verifier: request.verifier,
+        result: some<Boolean>(passed),
+    });
+    return passed;
+}
+
+// A standalone "minimum score" proof: the holder proves a credential's exact
+// score is >= threshold without revealing it. Useful when a verifier only
+// asks for a score gate and no full request record is needed.
+export circuit verifySkillThreshold(
+    certificateId: Bytes<32>,    // private
+    holderId: Bytes<32>,         // private
+    score: Uint<16>,             // private: exact score — never revealed
+    opening: Bytes<32>,          // private: commitment opening
+    credentialCommitment: Bytes<32>, // public: the credential's on-chain id
+    threshold: Uint<16>,         // public: minimum score requirement
+): Boolean {
+    const commitment = persistentCommit<CredentialSecret>(
+        CredentialSecret {
+            certificateId: certificateId,
+            holderId: holderId,
+            score: score,
+        },
+        opening,
+    );
+    assert(commitment == disclose(credentialCommitment), "Commitment does not match credential");
+    assert(credentials.member(disclose(credentialCommitment)), "Credential is not registered");
+    const record = credentials.lookup(disclose(credentialCommitment));
+    assert(!record.revoked, "Credential has been revoked");
+    assert(!blockTimeGte(record.expiresAt), "Credential has expired");
+    assert(authorizedIssuers.member(record.issuer), "Issuing institution is not authorized");
+    return disclose(score >= threshold);
+}

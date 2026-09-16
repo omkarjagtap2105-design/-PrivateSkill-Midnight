@@ -1,0 +1,53 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Counter — Simple On-Chain Counter with Privacy Demo
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// PUBLIC DATA:  counter — the current count, visible on-chain to everyone.
+//               lastIncrementBy — the step amount of the last increment,
+//               publicly disclosed after each call.
+//
+// PRIVATE DATA: amount (circuit witness) — the increment step chosen by the
+//               caller. It is a private input to the circuit and is NEVER
+//               stored on the ledger as a raw value.
+//
+// WHAT THE USER PROVES: that they submitted a valid increment transaction with
+//               a step in the range [1, 10]. The exact value is revealed via
+//               disclose() because this contract intentionally makes it public;
+//               in the PrivateSkill contract the analogous score witness is
+//               NEVER disclosed.
+//
+// This companion contract demonstrates basic Compact contract structure
+// (public ledger state + private circuit witness + disclose()).
+// The main PrivateSkill contract (private-skill.compact) contains the full
+// privacy-preserving credential verification logic with ZK proofs where the
+// private witness (exact score) is never disclosed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PUBLIC ledger state — visible on-chain to everyone
+export ledger counter: Counter;
+export ledger lastIncrementBy: Uint<8>;
+
+// Circuit with a private witness: `amount` is a circuit parameter (ZK witness).
+// It is private by default in Compact — only the assert and the final
+// disclose() determine what reaches the ledger.
+export circuit increment(amount: Uint<8>): [] {
+    // Validate the private input range inside the ZK circuit.
+    // This constraint is proved without revealing the exact value
+    // to anyone other than the ledger update below.
+    assert(amount >= 1, "Increment must be at least 1");
+    assert(amount <= 10, "Increment must be at most 10");
+
+    // Advance the counter by the chosen step.
+    counter.increment(disclose(amount));
+
+    // Record the step publicly so verifiers can see how large the last
+    // increment was. `disclose` is explicit — Compact rejects any attempt
+    // to store witness-derived data without it.
+    lastIncrementBy = disclose(amount);
+
+    return;
+}
