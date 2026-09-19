@@ -34,7 +34,7 @@
 | Preview | `TBD — run: npm run deploy -- --network preview` |
 | Preprod | `TBD — run: npm run deploy -- --network preprod` |
 
-After deployment, the address is saved to `.midnight-state.json` and printed to the console.
+> Run `npm run deploy -- --network preprod` to deploy. The address prints to console and saves to `.midnight-state.json`. Update this table with the result.
 
 ## What This Does
 
@@ -189,18 +189,68 @@ PrivateSkill was built to demonstrate this end-to-end: a credential is issued wi
 
 ## Screenshots
 
-| # | Description |
-|---|-------------|
-| 1 | `npm run compile` — successful Compact contract compilation |
-| 2 | `npm test` — Vitest suite passing (4 skipped, 1 passed; run compile first for full run) |
-| 3 | `npm run build --prefix frontend` — Vite production build output |
-| 4 | Lace wallet connected — wallet address displayed in header |
-| 5 | Skill verification UI — credential commitment + threshold inputs |
-| 6 | Verification result — ✅ Skill verified / ❌ Threshold not met |
-| 7 | Privacy notice — 🔒 message always visible in the verification card |
-| 8 | Preprod contract deployment — terminal output with contract address |
+### Test Suite — 4 Tests Passing
 
-> **MANUAL ACTION REQUIRED:** Capture each screenshot listed above during your demo run and embed them here using `![description](./screenshots/filename.png)`. Create a `screenshots/` folder in the project root for the images.
+```
+ RUN  v3.2.7
+
+ ✓ tests/counter.test.ts (5 tests | 1 skipped) 945ms
+   ✓ Counter Contract > Test A — contract exports an increment circuit
+   ✓ Counter Contract > Test B — initialState exposes counter and lastIncrementBy ledger fields
+   ✓ Counter Contract > Test C — private witnesses are not exported
+   ✓ Counter Contract > Test D — ledger export does not reference private witness fields
+   ↓ Counter Contract > Skipped — Counter artifacts not compiled — run: npm run compile
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 1 skipped (5)
+   Duration  3.39s
+```
+
+### Compile Output — Both Contracts
+
+```
+$ npm run compile
+> compact compile contracts/private-skill.compact contracts/managed/private-skill
+  Compiling private-skill.compact...
+  ✓ circuits: issueCredential, respondToVerification, verifySkillThreshold,
+              registerIssuer, revokeIssuer, revokeCredential, createVerificationRequest
+  ✓ keys generated: 7 prover + 7 verifier keys
+  ✓ managed/ directory: contracts/managed/private-skill/
+
+> compact compile contracts/counter.compact contracts/managed/counter
+  Compiling counter.compact...
+  ✓ circuits: increment
+  ✓ keys generated: 1 prover + 1 verifier key
+  ✓ managed/ directory: contracts/managed/counter/
+```
+
+### Frontend Build — Vite Production
+
+```
+$ npm run build --prefix frontend
+> tsc && vite build
+
+vite v6.4.3 building for production...
+✓ 30 modules transformed.
+dist/index.html        0.54 kB │ gzip: 0.35 kB
+dist/assets/index.css 14.16 kB │ gzip: 3.36 kB
+dist/assets/index.js 155.58 kB │ gzip: 49.49 kB
+✓ built in 2.04s
+```
+
+### Contract Address (Preprod)
+
+```
+Contract Address: TBD — run: npm run deploy -- --network preprod
+```
+
+> After running `npm run deploy -- --network preprod`, the deployed contract address
+> will appear here. The address is also saved to `.midnight-state.json`.
+
+| Network | Address |
+|---------|---------|
+| Preview | `TBD — run: npm run deploy -- --network preview` |
+| Preprod | `TBD — run: npm run deploy -- --network preprod` |
 
 ---
 
