@@ -12,9 +12,7 @@
 
 ## Demo Video
 
-https://github.com/omkarjagtap2105-design/-PrivateSkill-Midnight/raw/main/assets/deployment-video.mp4
-
-<video src="assets/deployment-video.mp4" controls width="100%"></video>
+![PrivateSkill Demo](assets/demo.gif)
 
 > Full deployment walkthrough — wallet connection, ZK proof generation, and skill verification result.
 
