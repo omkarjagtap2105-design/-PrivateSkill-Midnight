@@ -14,7 +14,9 @@
 
 ![PrivateSkill Demo](assets/demo.gif)
 
-> Full deployment walkthrough — wallet connection, ZK proof generation, and skill verification result.
+> 🎬 Full deployment walkthrough — wallet connection, ZK proof generation, and skill verification result.
+> 
+> [![Watch Demo](assets/thumbnail.png)](https://github.com/omkarjagtap2105-design/-PrivateSkill-Midnight/raw/main/assets/deployment-video.mp4)
 
 **What the video shows:**
 | Timestamp | Action |
