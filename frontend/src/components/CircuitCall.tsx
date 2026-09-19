@@ -1,127 +1,214 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useCallback } from 'react'
 
-interface CircuitCallProps {
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+export interface CircuitCallProps {
   verifyThreshold: (credentialCommitment: string, threshold: number) => Promise<boolean | null>
   isProving: boolean
   proofStep: string | null
   lastResult: boolean | null
 }
 
-export function CircuitCall({ verifyThreshold, isProving, proofStep, lastResult }: CircuitCallProps) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Derive the submit button label from the current proof step. */
+function getButtonLabel(isProving: boolean, proofStep: string | null): string {
+  if (!isProving) return 'Verify Skill'
+  if (proofStep && proofStep.toLowerCase().includes('submitting')) return 'Submitting...'
+  if (proofStep && proofStep.toLowerCase().includes('generating')) return 'Generating Proof...'
+  if (proofStep && proofStep.toLowerCase().includes('proof')) return 'Generating Proof...'
+  if (proofStep && proofStep.toLowerCase().includes('transaction')) return 'Submitting...'
+  return 'Generating Proof...'
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+/**
+ * CircuitCall renders the form to call verifySkillThreshold on the
+ * private-skill contract.
+ *
+ * Only PUBLIC inputs are collected here:
+ *   - credentialCommitment (hex string)
+ *   - threshold (number, 0–100)
+ *
+ * Private inputs (score, certificateId, holderId, opening) are NEVER
+ * collected, stored, or rendered — they are supplied by the Lace wallet
+ * internally during proof generation.
+ *
+ * Requirements: 5, 9
+ */
+export function CircuitCall({
+  verifyThreshold,
+  isProving,
+  proofStep,
+  lastResult,
+}: CircuitCallProps) {
+  // ── Local form state ───────────────────────────────────────────────────────
   const [credentialCommitment, setCredentialCommitment] = useState('')
-  const [threshold, setThreshold] = useState<number>(70)
-  const [formError, setFormError] = useState<string | null>(null)
+  const [threshold, setThreshold] = useState<number>(50)
+  const [localError, setLocalError] = useState<string | null>(null)
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    setFormError(null)
+  // ── Submit handler ─────────────────────────────────────────────────────────
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+      setLocalError(null)
 
-    if (!credentialCommitment.trim()) {
-      setFormError('Please enter a credential commitment.')
-      return
-    }
-    if (threshold < 0 || threshold > 100) {
-      setFormError('Threshold must be between 0 and 100.')
-      return
-    }
+      // Basic client-side validation
+      if (!credentialCommitment.trim()) {
+        setLocalError('Please enter a credential commitment.')
+        return
+      }
+      if (!/^(0x)?[0-9a-fA-F]+$/.test(credentialCommitment.trim())) {
+        setLocalError('Credential commitment must be a valid hex string.')
+        return
+      }
+      if (threshold < 0 || threshold > 100) {
+        setLocalError('Threshold must be between 0 and 100.')
+        return
+      }
 
-    await verifyThreshold(credentialCommitment.trim(), threshold)
-  }
+      try {
+        await verifyThreshold(credentialCommitment.trim(), threshold)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setLocalError(msg)
+      }
+    },
+    [credentialCommitment, threshold, verifyThreshold],
+  )
 
-  function buttonLabel() {
-    if (!isProving) return 'Verify Skill'
-    if (proofStep?.includes('Generating')) return 'Generating Proof…'
-    if (proofStep?.includes('Submitting')) return 'Submitting…'
-    return 'Working…'
-  }
+  const handleTryAgain = useCallback(() => {
+    setLocalError(null)
+  }, [])
 
+  const buttonLabel = getButtonLabel(isProving, proofStep)
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <section className="circuit-card" aria-label="Skill Verification">
-      <h2 className="circuit-title">Verify a Skill Credential</h2>
-
+    <div className="circuit-call">
       {/* Privacy notice — always visible */}
-      <div className="privacy-notice" role="note">
-        🔒 <strong>Your private credential data is processed locally by your wallet</strong> —
-        it is never sent to any server or stored on-chain.
+      <div className="circuit-call__privacy-notice" role="note" aria-label="Privacy notice">
+        🔒 Your private credential data is processed locally by your wallet — it is never sent to
+        any server
       </div>
 
-      <form onSubmit={handleSubmit} className="circuit-form" noValidate>
-        <div className="form-group">
-          <label htmlFor="credential-commitment" className="form-label">
+      {/* Verification form */}
+      <form
+        className="circuit-call__form"
+        onSubmit={handleSubmit}
+        aria-label="Verify skill threshold"
+      >
+        {/* Credential Commitment input */}
+        <div className="circuit-call__field">
+          <label className="circuit-call__label" htmlFor="credentialCommitment">
             Credential Commitment
-            <span className="form-hint"> (hex — the on-chain public identifier of your credential)</span>
+            <span className="circuit-call__label-hint">(hex string)</span>
           </label>
           <input
-            id="credential-commitment"
+            id="credentialCommitment"
+            className="circuit-call__input"
             type="text"
-            className="form-input"
-            placeholder="0x…"
             value={credentialCommitment}
             onChange={(e) => setCredentialCommitment(e.target.value)}
+            placeholder="0x1a2b3c4d…"
             disabled={isProving}
-            autoComplete="off"
+            aria-required="true"
+            aria-describedby="credentialCommitment-hint"
             spellCheck={false}
+            autoComplete="off"
           />
+          <span id="credentialCommitment-hint" className="circuit-call__field-hint">
+            The public on-chain commitment to your credential. Not the score itself.
+          </span>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="threshold" className="form-label">
-            Threshold (0–100)
-            <span className="form-hint"> (minimum score required)</span>
+        {/* Threshold input */}
+        <div className="circuit-call__field">
+          <label className="circuit-call__label" htmlFor="threshold">
+            Threshold
+            <span className="circuit-call__label-hint">(0 – 100)</span>
           </label>
           <input
             id="threshold"
+            className="circuit-call__input circuit-call__input--number"
             type="number"
-            className="form-input form-input--narrow"
-            min={0}
-            max={100}
             value={threshold}
             onChange={(e) => setThreshold(Number(e.target.value))}
+            min={0}
+            max={100}
+            step={1}
             disabled={isProving}
+            aria-required="true"
+            aria-describedby="threshold-hint"
           />
+          <span id="threshold-hint" className="circuit-call__field-hint">
+            Minimum skill score to verify. The proof will confirm your score meets or exceeds this
+            value without revealing your exact score.
+          </span>
         </div>
 
-        {/* NO score / certificateId / holderId / opening inputs — private data
-            is supplied by the Lace wallet during proof generation */}
-
-        {formError && (
-          <p className="form-error" role="alert">
-            {formError}
-          </p>
-        )}
-
+        {/* Submit button */}
         <button
           type="submit"
-          className="btn btn--primary btn--wide"
+          className="circuit-call__button"
           disabled={isProving}
           aria-busy={isProving}
         >
-          {buttonLabel()}
+          {isProving && (
+            <span className="circuit-call__spinner" role="presentation" aria-hidden="true" />
+          )}
+          {buttonLabel}
         </button>
       </form>
 
       {/* Proof progress */}
       {isProving && proofStep && (
-        <div className="proof-progress" role="status" aria-live="polite">
-          <span className="spinner spinner--inline" aria-hidden="true" />
-          <span>{proofStep}</span>
+        <div className="circuit-call__progress" role="status" aria-live="polite">
+          <span className="circuit-call__progress-text">{proofStep}</span>
         </div>
       )}
 
-      {/* Result */}
-      {!isProving && lastResult !== null && (
+      {/* Result display */}
+      {!isProving && lastResult === true && (
         <div
-          className={`result-banner ${lastResult ? 'result-banner--success' : 'result-banner--fail'}`}
+          className="circuit-call__result circuit-call__result--success"
           role="status"
           aria-live="polite"
         >
-          {lastResult ? (
-            <>✅ <strong>Skill verified</strong> — threshold met</>
-          ) : (
-            <>❌ <strong>Threshold not met</strong></>
-          )}
+          ✅ Skill verified — threshold met
         </div>
       )}
-    </section>
+
+      {!isProving && lastResult === false && (
+        <div
+          className="circuit-call__result circuit-call__result--failure"
+          role="status"
+          aria-live="polite"
+        >
+          ❌ Threshold not met
+        </div>
+      )}
+
+      {/* Error display */}
+      {localError && (
+        <div
+          className="circuit-call__error"
+          role="alert"
+          aria-live="assertive"
+        >
+          <span className="circuit-call__error-message">{localError}</span>
+          <button
+            type="button"
+            className="circuit-call__button circuit-call__button--retry"
+            onClick={handleTryAgain}
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
+
+export default CircuitCall

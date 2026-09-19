@@ -11,13 +11,20 @@ export default function App() {
     isProving,
     proofStep,
     lastResult,
+    isDemoMode,
+    walletType,
+    isLaceInstalled,
     connect,
+    connectDemo,
     disconnect,
     verifyThreshold,
   } = useMidnight()
 
+  const isConnected = connectionState === 'connected'
+
   return (
     <div className="app">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="app-header">
         <div className="app-header__inner">
           <div className="app-brand">
@@ -27,18 +34,24 @@ export default function App() {
               <p className="app-brand__tagline">Prove your skills. Keep your score private.</p>
             </div>
           </div>
+
           <WalletConnect
             connectionState={connectionState}
             walletAddress={walletAddress}
             error={error}
+            isDemoMode={isDemoMode}
+            walletType={walletType}
+            isLaceInstalled={isLaceInstalled}
             connect={connect}
+            connectDemo={connectDemo}
             disconnect={disconnect}
           />
         </div>
       </header>
 
+      {/* ── Main ───────────────────────────────────────────────────────── */}
       <main className="app-main">
-        {connectionState === 'connected' ? (
+        {isConnected ? (
           <CircuitCall
             verifyThreshold={verifyThreshold}
             isProving={isProving}
@@ -49,36 +62,61 @@ export default function App() {
           <div className="welcome-card">
             <h2 className="welcome-card__title">Welcome to PrivateSkill</h2>
             <p className="welcome-card__body">
-              Connect your <strong>Lace wallet</strong> to start verifying skill credentials
-              with zero-knowledge proofs on the Midnight Network.
+              Verify skill credentials using zero-knowledge proofs on the{' '}
+              <strong>Midnight Network</strong> — your score is never revealed.
             </p>
+
             <ul className="privacy-list">
               <li>✅ Your exact score is <strong>never revealed</strong></li>
               <li>✅ Proof is generated <strong>locally in your wallet</strong></li>
               <li>✅ Only a boolean result is stored on-chain</li>
             </ul>
+
+            {/* Always-visible action buttons on welcome screen */}
+            <div className="welcome-actions">
+              {isLaceInstalled ? (
+                <button
+                  type="button"
+                  className="welcome-btn welcome-btn--primary"
+                  onClick={connect}
+                >
+                  🟣 Connect Lace Wallet
+                </button>
+              ) : (
+                <a
+                  href="https://www.lace.io"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="welcome-btn welcome-btn--secondary"
+                >
+                  🔌 Get Lace Wallet
+                </a>
+              )}
+              <button
+                type="button"
+                className="welcome-btn welcome-btn--demo"
+                onClick={connectDemo}
+              >
+                🧪 Try Demo Mode
+              </button>
+            </div>
+
+            <p className="welcome-hint">
+              No wallet? Use <strong>Demo Mode</strong> to explore the full UI instantly.
+            </p>
           </div>
         )}
       </main>
 
+      {/* ── Footer ─────────────────────────────────────────────────────── */}
       <footer className="app-footer">
         <p>
           Built on{' '}
-          <a
-            href="https://midnight.network"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="footer-link"
-          >
+          <a href="https://midnight.network" target="_blank" rel="noopener noreferrer" className="footer-link">
             Midnight Network
           </a>{' '}
           · Powered by{' '}
-          <a
-            href="https://www.lace.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="footer-link"
-          >
+          <a href="https://www.lace.io" target="_blank" rel="noopener noreferrer" className="footer-link">
             Lace Wallet
           </a>
         </p>

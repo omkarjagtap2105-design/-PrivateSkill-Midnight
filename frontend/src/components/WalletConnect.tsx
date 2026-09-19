@@ -1,75 +1,155 @@
-import type { ConnectionState } from '../hooks/useMidnight'
+import type { ConnectionState, WalletType } from '../hooks/useMidnight'
 
-interface WalletConnectProps {
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+export interface WalletConnectProps {
   connectionState: ConnectionState
   walletAddress: string | null
   error: string | null
+  isDemoMode: boolean
+  walletType: WalletType
+  isLaceInstalled: boolean
   connect: () => Promise<void>
+  connectDemo: () => void
   disconnect: () => void
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function truncateAddress(address: string): string {
-  if (address.length <= 16) return address
-  return `${address.slice(0, 8)}…${address.slice(-8)}`
+  if (address.length <= 20) return address
+  return `${address.slice(0, 10)}…${address.slice(-6)}`
 }
+
+function walletLabel(walletType: WalletType): string {
+  if (walletType === 'lace-midnight') return '🌑 Midnight Lace'
+  if (walletType === 'lace-cardano') return '🟣 Lace'
+  if (walletType === 'demo') return '🧪 Demo'
+  return '🟢'
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function WalletConnect({
   connectionState,
   walletAddress,
   error,
+  isDemoMode,
+  walletType,
+  isLaceInstalled,
   connect,
+  connectDemo,
   disconnect,
 }: WalletConnectProps) {
+
+  // ── connecting ───────────────────────────────────────────────────────────
+  if (connectionState === 'connecting') {
+    return (
+      <div className="wallet-connect wallet-connect--connecting" aria-live="polite">
+        <span className="wallet-connect__spinner" role="status" aria-label="Connecting to wallet" />
+        <span className="wallet-connect__connecting-label">Connecting…</span>
+      </div>
+    )
+  }
+
+  // ── connected ────────────────────────────────────────────────────────────
   if (connectionState === 'connected' && walletAddress) {
     return (
-      <div className="wallet-panel wallet-panel--connected">
-        <div className="wallet-status">
-          <span className="wallet-dot wallet-dot--connected" aria-hidden="true" />
-          <span className="wallet-label">Connected</span>
-        </div>
-        <code className="wallet-address" title={walletAddress}>
+      <div className="wallet-connect wallet-connect--connected">
+        {isDemoMode && <span className="wallet-connect__demo-badge">DEMO</span>}
+        <span className="wallet-connect__wallet-type">{walletLabel(walletType)}</span>
+        <span
+          className="wallet-connect__address"
+          title={walletAddress}
+          aria-label={`Connected wallet: ${walletAddress}`}
+        >
           {truncateAddress(walletAddress)}
-        </code>
-        <button className="btn btn--secondary" onClick={disconnect}>
+        </span>
+        <button
+          type="button"
+          className="wallet-connect__button wallet-connect__button--disconnect"
+          onClick={disconnect}
+        >
           Disconnect
         </button>
       </div>
     )
   }
 
-  if (connectionState === 'connecting') {
+  // ── error ────────────────────────────────────────────────────────────────
+  if (connectionState === 'error') {
     return (
-      <div className="wallet-panel wallet-panel--connecting">
-        <span className="spinner" aria-label="Connecting…" />
-        <span className="wallet-msg">Connecting to Lace…</span>
+      <div className="wallet-connect wallet-connect--error" role="alert">
+        <span className="wallet-connect__icon" aria-hidden="true">⚠️</span>
+        <p className="wallet-connect__error-message">{error ?? 'An unknown error occurred.'}</p>
+        <div className="wallet-connect__error-actions">
+          <button
+            type="button"
+            className="wallet-connect__button wallet-connect__button--retry"
+            onClick={connect}
+          >
+            Try Again
+          </button>
+          <button
+            type="button"
+            className="wallet-connect__button wallet-connect__button--demo"
+            onClick={connectDemo}
+          >
+            🧪 Use Demo Mode
+          </button>
+        </div>
       </div>
     )
   }
 
-  if (connectionState === 'error' && error) {
-    return (
-      <div className="wallet-panel wallet-panel--error">
-        <p className="wallet-error" role="alert">
-          {error}
-        </p>
-        <button className="btn btn--primary" onClick={connect}>
-          Try Again
-        </button>
-      </div>
-    )
-  }
-
-  // Default: disconnected — always show Connect button.
-  // The Midnight dapp connector (window.midnight.mnLace) is injected by the
-  // Midnight-enabled Lace build. We don't gate the button on detection at
-  // render time because the extension may inject after the React tree mounts.
-  // If the connector is absent at click time, connect() will surface a clear
-  // error message explaining what the user needs to do.
+  // ── disconnected — show connect options ──────────────────────────────────
   return (
-    <div className="wallet-panel wallet-panel--disconnected">
-      <button className="btn btn--primary" onClick={connect}>
-        Connect Lace Wallet
-      </button>
+    <div className="wallet-connect wallet-connect--disconnected">
+      {isLaceInstalled ? (
+        // Lace is installed — show Connect Lace Wallet button
+        <div className="wallet-connect__options">
+          <button
+            type="button"
+            className="wallet-connect__button wallet-connect__button--connect"
+            onClick={connect}
+          >
+            🟣 Connect Lace Wallet
+          </button>
+          <button
+            type="button"
+            className="wallet-connect__button wallet-connect__button--demo"
+            onClick={connectDemo}
+          >
+            🧪 Demo Mode
+          </button>
+        </div>
+      ) : (
+        // Lace not installed — show install prompt + demo
+        <div className="wallet-connect wallet-connect--not-detected" role="alert">
+          <span className="wallet-connect__icon" aria-hidden="true">🔌</span>
+          <p className="wallet-connect__message">Lace wallet not detected.</p>
+          <p className="wallet-connect__hint">
+            Install Lace to connect a real wallet.{' '}
+            <a
+              href="https://www.lace.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="wallet-connect__link"
+            >
+              Download at lace.io
+            </a>
+          </p>
+          <button
+            type="button"
+            className="wallet-connect__button wallet-connect__button--demo"
+            onClick={connectDemo}
+          >
+            🧪 Try Demo Mode
+          </button>
+        </div>
+      )}
     </div>
   )
 }
+
+export default WalletConnect
