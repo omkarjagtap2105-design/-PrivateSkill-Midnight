@@ -31,10 +31,9 @@
 
 | Network | Address |
 |---------|---------|
-| Preview | `TBD — run: npm run deploy -- --network preview` |
-| Preprod | `TBD — run: npm run deploy -- --network preprod` |
+| Preprod | `d32cf38d59c716cee438d44e63386df8973aa56b0dda6c6b32751f59e9d5caf2` |
 
-> Run `npm run deploy -- --network preprod` to deploy. The address prints to console and saves to `.midnight-state.json`. Update this table with the result.
+> Deployed on Midnight Preprod testnet. Wallet: `mn_addr_preprod1qspsyhvzyt7y6k5qfwcucz822yauqluzx77982l4n6rrgwddwrzshrvxxm`
 
 ## What This Does
 
@@ -241,16 +240,14 @@ dist/assets/index.js 155.58 kB │ gzip: 49.49 kB
 ### Contract Address (Preprod)
 
 ```
-Contract Address: TBD — run: npm run deploy -- --network preprod
+Contract Address: d32cf38d59c716cee438d44e63386df8973aa56b0dda6c6b32751f59e9d5caf2
+Network:          preprod
+Wallet:           mn_addr_preprod1qspsyhvzyt7y6k5qfwcucz822yauqluzx77982l4n6rrgwddwrzshrvxxm
 ```
-
-> After running `npm run deploy -- --network preprod`, the deployed contract address
-> will appear here. The address is also saved to `.midnight-state.json`.
 
 | Network | Address |
 |---------|---------|
-| Preview | `TBD — run: npm run deploy -- --network preview` |
-| Preprod | `TBD — run: npm run deploy -- --network preprod` |
+| Preprod | `d32cf38d59c716cee438d44e63386df8973aa56b0dda6c6b32751f59e9d5caf2` |
 
 ---
 

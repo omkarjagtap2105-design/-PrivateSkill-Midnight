@@ -44,7 +44,7 @@ Midnight is uniquely suited for PrivateSkill because it provides native zero-kno
 PrivateSkill is currently deployed and verified on Midnight **Preprod** testnet. The contract address is recorded in the Contract Address section of README.md once deployment is completed.
 
 **Current status:**
-- Smart contract (`private-skill.compact`) compiles cleanly with the Midnight Compact compiler.
+- Smart contract deployed on Midnight **Preprod** testnet at address `d32cf38d59c716cee438d44e63386df8973aa56b0dda6c6b32751f59e9d5caf2`.
 - All circuits (`issueCredential`, `respondToVerification`, `verifySkillThreshold`, `registerIssuer`, `revokeIssuer`, `revokeCredential`, `createVerificationRequest`) are implemented and follow Midnight's privacy-by-default model.
 - Frontend is production-built and deployed to Vercel with Lace wallet integration via the `window.midnight.mnLace` dapp connector API.
 - CI pipeline (GitHub Actions) runs `npm test` and `npm run build --prefix frontend` on every push.
