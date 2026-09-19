@@ -12,16 +12,20 @@
 
 ## Demo Video
 
-🎬 **[Demo Video — record and upload, then update this link]**
+https://github.com/omkarjagtap2105-design/-PrivateSkill-Midnight/raw/main/assets/deployment-video.mp4
 
-**Demo script (< 2 min):**
+<video src="assets/deployment-video.mp4" controls width="100%"></video>
+
+> Full deployment walkthrough — wallet connection, ZK proof generation, and skill verification result.
+
+**What the video shows:**
 | Timestamp | Action |
 |-----------|--------|
-| 0:00–0:20 | Open live app → click **Connect Wallet** → show Lace connection + wallet address |
-| 0:20–0:45 | Show public verification inputs (commitment + threshold) — no private fields in UI |
-| 0:45–1:10 | Click **Verify Skill** → show "Generating Proof…" → "Submitting…" progress |
-| 1:10–1:35 | Show verification result (✅ or ❌) |
-| 1:35–2:00 | Highlight privacy notice: "Your private credential data is processed locally by your wallet" |
+| 0:00–0:20 | Open live app → click **Connect Wallet** → Lace connection + wallet address |
+| 0:20–0:45 | Public verification inputs (commitment + threshold) — no private fields in UI |
+| 0:45–1:10 | Click **Verify Skill** → "Generating Proof…" → "Submitting…" progress steps |
+| 1:10–1:35 | Verification result (✅ or ❌) |
+| 1:35–2:00 | Privacy notice: "Your private credential data is processed locally by your wallet" |
 
 ## Contract Address
 
@@ -265,3 +269,4 @@ npm run network preview               # switch to preview
 compact update <version>
 compact use <version>
 ```
+ `
