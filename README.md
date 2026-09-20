@@ -188,21 +188,45 @@ PrivateSkill was built to demonstrate this end-to-end: a credential is issued wi
 
 ## Screenshots
 
-### Test Suite — 4 Tests Passing
+> 📸 Screenshots are required from a live session. See MANUAL ACTION below.
+> The `screenshots/` directory is tracked in git — add PNG files after capturing them.
+
+### Required Screenshots
+
+| File | What to capture |
+|------|----------------|
+| `screenshots/compile-success.png` | Terminal output of `npm run compile` |
+| `screenshots/tests-passing.png` | Terminal output of `npm test` (11 tests passing) |
+| `screenshots/preprod-deployment.png` | `.midnight-state.json` or terminal deploy output showing contract address |
+| `screenshots/lace-connected.png` | Live app at https://privateskill-midnight.vercel.app with Lace wallet connected |
+| `screenshots/circuit-success.png` | Verification form with "Generating Proof…" or "Submitting…" in progress |
+| `screenshots/verification-result.png` | Live app showing ✅ "Skill verified — threshold met" result banner |
+
+### Test Suite — 11 Tests Passing
 
 ```
- RUN  v3.2.7
+ RUN  v3.2.7 C:/Users/omkar/Desktop/PrivateSkill-Midnight-main
 
- ✓ tests/counter.test.ts (5 tests | 1 skipped) 945ms
-   ✓ Counter Contract > Test A — contract exports an increment circuit
-   ✓ Counter Contract > Test B — initialState exposes counter and lastIncrementBy ledger fields
-   ✓ Counter Contract > Test C — private witnesses are not exported
-   ✓ Counter Contract > Test D — ledger export does not reference private witness fields
-   ↓ Counter Contract > Skipped — Counter artifacts not compiled — run: npm run compile
+ ✓ tests/private-skill.test.ts (8 tests | 1 skipped) 537ms
+   ✓ PrivateSkill Contract > Test 1 — Contract exports all 7 required circuits
+   ✓ PrivateSkill Contract > Test 2 — Private witness fields not exported
+   ✓ PrivateSkill Contract > Test 3 — Ledger exposes only public fields
+   ✓ PrivateSkill Contract > Test 4 — issueCredential circuit enforces arity of 10
+   ✓ PrivateSkill Contract > Test 5 — verifySkillThreshold circuit enforces arity of 7
+   ✓ PrivateSkill Contract > Test 6 — Contract.initialState enforces arity of 2
+   ✓ PrivateSkill Contract > Test 7 — pureCircuits is exported
+   ↓ PrivateSkill Contract > Skipped — artifacts not compiled
 
- Test Files  1 passed (1)
-      Tests  4 passed | 1 skipped (5)
-   Duration  3.39s
+ ✓ tests/counter.test.ts (5 tests | 1 skipped) 209ms
+   ✓ Counter Contract > Test A — increment circuit exported
+   ✓ Counter Contract > Test B — counter and lastIncrementBy ledger fields exposed
+   ✓ Counter Contract > Test C — private witnesses not exported
+   ✓ Counter Contract > Test D — ledger does not reference private fields
+   ↓ Counter Contract > Skipped — artifacts not compiled
+
+ Test Files  2 passed (2)
+      Tests  11 passed | 2 skipped (13)
+   Duration  2.39s
 ```
 
 ### Compile Output — Both Contracts
@@ -231,10 +255,10 @@ $ npm run build --prefix frontend
 
 vite v6.4.3 building for production...
 ✓ 30 modules transformed.
-dist/index.html        0.54 kB │ gzip: 0.35 kB
-dist/assets/index.css 14.16 kB │ gzip: 3.36 kB
-dist/assets/index.js 155.58 kB │ gzip: 49.49 kB
-✓ built in 2.04s
+dist/index.html                   0.54 kB │ gzip:  0.35 kB
+dist/assets/index-DFDoLBok.css   14.16 kB │ gzip:  3.36 kB
+dist/assets/index-DCAGncPG.js   155.58 kB │ gzip: 49.49 kB
+✓ built in 1.85s
 ```
 
 ### Contract Address (Preprod)
@@ -243,6 +267,7 @@ dist/assets/index.js 155.58 kB │ gzip: 49.49 kB
 Contract Address: d32cf38d59c716cee438d44e63386df8973aa56b0dda6c6b32751f59e9d5caf2
 Network:          preprod
 Wallet:           mn_addr_preprod1qspsyhvzyt7y6k5qfwcucz822yauqluzx77982l4n6rrgwddwrzshrvxxm
+Deployed At:      2026-09-19T12:40:57.558Z
 ```
 
 | Network | Address |
@@ -316,4 +341,3 @@ npm run network preview               # switch to preview
 compact update <version>
 compact use <version>
 ```
- `
