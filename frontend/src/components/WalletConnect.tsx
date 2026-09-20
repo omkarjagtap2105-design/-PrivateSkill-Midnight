@@ -6,11 +6,9 @@ export interface WalletConnectProps {
   connectionState: ConnectionState
   walletAddress: string | null
   error: string | null
-  isDemoMode: boolean
   walletType: WalletType
   isLaceInstalled: boolean
   connect: () => Promise<void>
-  connectDemo: () => void
   disconnect: () => void
 }
 
@@ -24,7 +22,6 @@ function truncateAddress(address: string): string {
 function walletLabel(walletType: WalletType): string {
   if (walletType === 'lace-midnight') return '🌑 Midnight Lace'
   if (walletType === 'lace-cardano') return '🟣 Lace'
-  if (walletType === 'demo') return '🧪 Demo'
   return '🟢'
 }
 
@@ -34,11 +31,9 @@ export function WalletConnect({
   connectionState,
   walletAddress,
   error,
-  isDemoMode,
   walletType,
   isLaceInstalled,
   connect,
-  connectDemo,
   disconnect,
 }: WalletConnectProps) {
 
@@ -56,7 +51,6 @@ export function WalletConnect({
   if (connectionState === 'connected' && walletAddress) {
     return (
       <div className="wallet-connect wallet-connect--connected">
-        {isDemoMode && <span className="wallet-connect__demo-badge">DEMO</span>}
         <span className="wallet-connect__wallet-type">{walletLabel(walletType)}</span>
         <span
           className="wallet-connect__address"
@@ -90,13 +84,6 @@ export function WalletConnect({
           >
             Try Again
           </button>
-          <button
-            type="button"
-            className="wallet-connect__button wallet-connect__button--demo"
-            onClick={connectDemo}
-          >
-            🧪 Use Demo Mode
-          </button>
         </div>
       </div>
     )
@@ -106,7 +93,6 @@ export function WalletConnect({
   return (
     <div className="wallet-connect wallet-connect--disconnected">
       {isLaceInstalled ? (
-        // Lace is installed — show Connect Lace Wallet button
         <div className="wallet-connect__options">
           <button
             type="button"
@@ -115,21 +101,13 @@ export function WalletConnect({
           >
             🟣 Connect Lace Wallet
           </button>
-          <button
-            type="button"
-            className="wallet-connect__button wallet-connect__button--demo"
-            onClick={connectDemo}
-          >
-            🧪 Demo Mode
-          </button>
         </div>
       ) : (
-        // Lace not installed — show install prompt + demo
         <div className="wallet-connect wallet-connect--not-detected" role="alert">
           <span className="wallet-connect__icon" aria-hidden="true">🔌</span>
           <p className="wallet-connect__message">Lace wallet not detected.</p>
           <p className="wallet-connect__hint">
-            Install Lace to connect a real wallet.{' '}
+            Install Lace extension to connect.{' '}
             <a
               href="https://www.lace.io"
               target="_blank"
@@ -141,10 +119,10 @@ export function WalletConnect({
           </p>
           <button
             type="button"
-            className="wallet-connect__button wallet-connect__button--demo"
-            onClick={connectDemo}
+            className="wallet-connect__button wallet-connect__button--connect"
+            onClick={connect}
           >
-            🧪 Try Demo Mode
+            🟣 Connect Lace Wallet
           </button>
         </div>
       )}

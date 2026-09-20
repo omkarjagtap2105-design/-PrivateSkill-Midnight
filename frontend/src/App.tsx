@@ -11,11 +11,10 @@ export default function App() {
     isProving,
     proofStep,
     lastResult,
-    isDemoMode,
+    lastResultDetail,
     walletType,
     isLaceInstalled,
     connect,
-    connectDemo,
     disconnect,
     verifyThreshold,
   } = useMidnight()
@@ -39,11 +38,9 @@ export default function App() {
             connectionState={connectionState}
             walletAddress={walletAddress}
             error={error}
-            isDemoMode={isDemoMode}
             walletType={walletType}
             isLaceInstalled={isLaceInstalled}
             connect={connect}
-            connectDemo={connectDemo}
             disconnect={disconnect}
           />
         </div>
@@ -57,6 +54,8 @@ export default function App() {
             isProving={isProving}
             proofStep={proofStep}
             lastResult={lastResult}
+            lastResultDetail={lastResultDetail}
+            error={error}
           />
         ) : (
           <div className="welcome-card">
@@ -72,7 +71,6 @@ export default function App() {
               <li>✅ Only a boolean result is stored on-chain</li>
             </ul>
 
-            {/* Always-visible action buttons on welcome screen */}
             <div className="welcome-actions">
               {isLaceInstalled ? (
                 <button
@@ -92,18 +90,7 @@ export default function App() {
                   🔌 Get Lace Wallet
                 </a>
               )}
-              <button
-                type="button"
-                className="welcome-btn welcome-btn--demo"
-                onClick={connectDemo}
-              >
-                🧪 Try Demo Mode
-              </button>
             </div>
-
-            <p className="welcome-hint">
-              No wallet? Use <strong>Demo Mode</strong> to explore the full UI instantly.
-            </p>
           </div>
         )}
       </main>

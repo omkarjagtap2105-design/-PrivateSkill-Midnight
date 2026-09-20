@@ -1,52 +1,51 @@
+/**
+ * useMidnight — Real Lace wallet connection + PrivateSkill contract interaction.
+ *
+ * REAL FLOW (Midnight Lace connected):
+ *   1. connectLaceWallet() — Lace DApp Connector API
+ *   2. findDeployedContract → Preprod contract (d32cf38d…)
+ *   3. callTx.verifySkillThreshold(...) — ZK proof + transaction
+ *   4. Boolean result on-chain; returned to React
+ *
+ * PRIVACY:
+ *   - credentialCommitment, threshold → public inputs (collected in UI)
+ *   - certificateId, holderId, score, opening → private witnesses (processed locally)
+ *   - The exact score is never revealed — only the boolean result is disclosed
+ */
+
 import { useState, useCallback } from 'react'
+import {
+  connectLaceWallet,
+  executeVerifySkillThreshold,
+  type VerificationStep,
+} from '../services/midnight/contractService'
 
 // ─── Wallet API type declarations ─────────────────────────────────────────────
 
-// Standard Lace (Cardano) — window.cardano.lace
 interface CardanoLaceAPI {
-  enable: () => Promise<CardanoLaceEnabledAPI>
+  enable: () => Promise<unknown>
   isEnabled: () => Promise<boolean>
   name: string
-  icon: string
-  apiVersion: string
-}
-
-interface CardanoLaceEnabledAPI {
-  getUsedAddresses: () => Promise<string[]>
-  getUnusedAddresses: () => Promise<string[]>
-  getChangeAddress: () => Promise<string>
-  getRewardAddresses: () => Promise<string[]>
-}
-
-// Midnight Lace — window.midnight.mnLace
-interface MidnightLaceAPI {
-  enable: () => Promise<MidnightLaceEnabledAPI>
-  isEnabled: () => Promise<boolean>
-  name: string
-  icon: string
-  apiVersion: string
-}
-
-interface MidnightLaceEnabledAPI {
-  state: () => Promise<{ address?: string; coinPublicKey?: string }>
 }
 
 declare global {
   interface Window {
-    cardano?: {
-      lace?: CardanoLaceAPI
-      [key: string]: unknown
-    }
-    midnight?: {
-      mnLace?: MidnightLaceAPI
-    }
+    cardano?: { lace?: CardanoLaceAPI; [key: string]: unknown }
   }
 }
 
-// ─── Hook state types ─────────────────────────────────────────────────────────
+// ─── Hook types ───────────────────────────────────────────────────────────────
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
-export type WalletType = 'lace-cardano' | 'lace-midnight' | 'demo' | null
+export type WalletType = 'lace-midnight' | 'lace-cardano' | null
+
+export interface VerificationResultDetail {
+  passed: boolean
+  txHash: string | null
+  contractAddress: string
+  network: string
+  isReal: boolean
+}
 
 export interface UseMidnightReturn {
   connectionState: ConnectionState
@@ -55,17 +54,36 @@ export interface UseMidnightReturn {
   isProving: boolean
   proofStep: string | null
   lastResult: boolean | null
-  isDemoMode: boolean
+  lastResultDetail: VerificationResultDetail | null
   walletType: WalletType
   isLaceInstalled: boolean
-  isMidnightLaceInstalled: boolean
   connect: () => Promise<void>
-  connectDemo: () => void
   disconnect: () => void
-  verifyThreshold: (credentialCommitment: string, threshold: number) => Promise<boolean | null>
+  verifyThreshold: (
+    credentialCommitment: string,
+    threshold: number,
+    privateInputs?: {
+      certificateId?: string
+      holderId?: string
+      score?: number
+      opening?: string
+    }
+  ) => Promise<boolean | null>
 }
 
-// ─── Hook implementation ──────────────────────────────────────────────────────
+// ─── Step label map ───────────────────────────────────────────────────────────
+
+const STEP_LABELS: Record<VerificationStep, string> = {
+  'connecting-wallet':         'Connecting to Lace wallet…',
+  'loading-contract':          'Loading contract artifacts…',
+  'preparing-proof-inputs':    'Preparing verification…',
+  'generating-zk-proof':       'Generating proof…',
+  'submitting-transaction':    'Submitting transaction…',
+  'waiting-for-confirmation':  'Waiting for confirmation…',
+  'complete':                  'Complete',
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useMidnight(): UseMidnightReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
@@ -74,110 +92,52 @@ export function useMidnight(): UseMidnightReturn {
   const [isProving, setIsProving] = useState(false)
   const [proofStep, setProofStep] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<boolean | null>(null)
-  const [isDemoMode, setIsDemoMode] = useState(false)
+  const [lastResultDetail, setLastResultDetail] = useState<VerificationResultDetail | null>(null)
   const [walletType, setWalletType] = useState<WalletType>(null)
 
-  // Detect which wallet APIs are available
-  const isLaceInstalled = typeof window !== 'undefined' && !!window.cardano?.lace
-  const isMidnightLaceInstalled = typeof window !== 'undefined' && !!window.midnight?.mnLace
+  const isLaceInstalled =
+    typeof window !== 'undefined' &&
+    (!!window.midnight?.mnLace ||
+      !!(window.midnight as unknown as { lace?: unknown })?.lace ||
+      !!(window.cardano as unknown as { mnLace?: unknown })?.mnLace ||
+      !!window.cardano?.lace)
 
   // ── connect ────────────────────────────────────────────────────────────────
-  // Tries Midnight Lace first, falls back to standard Lace (Cardano)
 
   const connect = useCallback(async () => {
     setError(null)
     setConnectionState('connecting')
 
-    // Poll briefly for async injection
-    let midnightLace = window.midnight?.mnLace
-    let cardanoLace = window.cardano?.lace
+    try {
+      const laceInfo = await connectLaceWallet()
+      const addressDisplay =
+        laceInfo.address.length > 20
+          ? `${laceInfo.address.slice(0, 10)}…${laceInfo.address.slice(-6)}`
+          : laceInfo.address
 
-    if (!midnightLace && !cardanoLace) {
-      for (let i = 0; i < 10; i++) {
-        await sleep(100)
-        midnightLace = window.midnight?.mnLace
-        cardanoLace = window.cardano?.lace
-        if (midnightLace || cardanoLace) break
+      setWalletAddress(addressDisplay)
+      setWalletType('lace-midnight')
+      setConnectionState('connected')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const isUserRejected =
+        msg.toLowerCase().includes('user rejected') ||
+        msg.toLowerCase().includes('cancel') ||
+        msg.toLowerCase().includes('refused')
+      const isChannelClosed =
+        msg.toLowerCase().includes('shutdown') ||
+        msg.toLowerCase().includes('channel') ||
+        msg.toLowerCase().includes('no longer be used')
+
+      if (isUserRejected) {
+        setError('Connection rejected. Please approve the request in your Lace wallet.')
+      } else if (isChannelClosed) {
+        setError('Lace extension disconnected. Please click the Lace icon in your browser toolbar to unlock/wake it, then click Try Again.')
+      } else {
+        setError(msg)
       }
+      setConnectionState('error')
     }
-
-    // ── Try Midnight Lace first ──────────────────────────────────────────
-    if (midnightLace) {
-      try {
-        const api = await midnightLace.enable()
-        const state = await api.state()
-        const address = state.address ?? state.coinPublicKey ?? null
-        if (!address) throw new Error('No address returned from Midnight Lace.')
-        setWalletAddress(address)
-        setWalletType('lace-midnight')
-        setConnectionState('connected')
-        return
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('cancel')) {
-          setError('Connection rejected. Please approve the request in Lace.')
-          setConnectionState('error')
-          return
-        }
-        // Fall through to try standard Lace
-      }
-    }
-
-    // ── Try standard Lace (Cardano) ──────────────────────────────────────
-    if (cardanoLace) {
-      try {
-        const api = await cardanoLace.enable()
-
-        // Try to get a usable address
-        let address: string | null = null
-        try {
-          const used = await api.getUsedAddresses()
-          if (used && used.length > 0) address = used[0]
-        } catch { /* ignore */ }
-
-        if (!address) {
-          try {
-            const unused = await api.getUnusedAddresses()
-            if (unused && unused.length > 0) address = unused[0]
-          } catch { /* ignore */ }
-        }
-
-        if (!address) {
-          try {
-            address = await api.getChangeAddress()
-          } catch { /* ignore */ }
-        }
-
-        if (!address) {
-          throw new Error('Could not retrieve wallet address from Lace.')
-        }
-
-        // Truncate long hex addresses for display
-        const displayAddress = address.length > 20
-          ? address.slice(0, 12) + '…' + address.slice(-6)
-          : address
-
-        setWalletAddress(displayAddress)
-        setWalletType('lace-cardano')
-        setConnectionState('connected')
-        return
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('cancel')) {
-          setError('Connection rejected. Please approve the request in Lace.')
-        } else {
-          setError(`Lace connection failed: ${msg}`)
-        }
-        setConnectionState('error')
-        return
-      }
-    }
-
-    // ── Neither wallet found ─────────────────────────────────────────────
-    setError(
-      'Lace wallet not found. Install Lace from https://www.lace.io and refresh the page.'
-    )
-    setConnectionState('error')
   }, [])
 
   // ── disconnect ─────────────────────────────────────────────────────────────
@@ -189,51 +149,72 @@ export function useMidnight(): UseMidnightReturn {
     setIsProving(false)
     setProofStep(null)
     setLastResult(null)
-    setIsDemoMode(false)
+    setLastResultDetail(null)
     setWalletType(null)
-  }, [])
-
-  // ── connectDemo ────────────────────────────────────────────────────────────
-
-  const connectDemo = useCallback(() => {
-    setError(null)
-    setConnectionState('connecting')
-    setTimeout(() => {
-      setIsDemoMode(true)
-      setWalletType('demo')
-      setWalletAddress('demo1midnight…abc456')
-      setConnectionState('connected')
-    }, 800)
   }, [])
 
   // ── verifyThreshold ────────────────────────────────────────────────────────
 
   const verifyThreshold = useCallback(
-    async (credentialCommitment: string, threshold: number): Promise<boolean | null> => {
+    async (
+      credentialCommitment: string,
+      threshold: number,
+      privateInputs?: {
+        certificateId?: string
+        holderId?: string
+        score?: number
+        opening?: string
+      },
+    ): Promise<boolean | null> => {
       setError(null)
       setLastResult(null)
+      setLastResultDetail(null)
       setIsProving(true)
 
       try {
-        setProofStep('Preparing proof inputs…')
-        await sleep(400)
+        const certIdHex = privateInputs?.certificateId ?? '00'.repeat(32)
+        const holderIdHex = privateInputs?.holderId ?? '00'.repeat(32)
+        const scoreValue = privateInputs?.score !== undefined ? BigInt(privateInputs.score) : 85n
+        const openingHex = privateInputs?.opening ?? '00'.repeat(32)
 
-        setProofStep('Generating zero-knowledge proof… (this may take a moment)')
-        await sleep(1200)
+        const zkPrivateInputs = {
+          certificateId: hexToBytes(certIdHex),
+          holderId: hexToBytes(holderIdHex),
+          score: scoreValue,
+          opening: hexToBytes(openingHex),
+        }
 
-        setProofStep('Submitting transaction to Midnight Network…')
-        await sleep(600)
+        const result = await executeVerifySkillThreshold(
+          credentialCommitment,
+          threshold,
+          zkPrivateInputs,
+          (step) => {
+            setProofStep(STEP_LABELS[step])
+          },
+        )
 
-        // Simulated result — replace with real SDK call once contract is deployed:
-        // const result = await midnightContract.verifySkillThreshold(credentialCommitment, threshold)
-        const simulatedResult = credentialCommitment.length > 0 && threshold >= 0
+        setLastResult(result.passed)
+        setLastResultDetail({
+          passed: result.passed,
+          txHash: result.txHash,
+          contractAddress: result.contractAddress,
+          network: result.network,
+          isReal: true,
+        })
+        return result.passed
 
-        setProofStep('Complete')
-        setLastResult(simulatedResult)
-        return simulatedResult
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
-        setError(`Verification failed: ${msg}`)
+        const isChannelClosed =
+          msg.toLowerCase().includes('shutdown') ||
+          msg.toLowerCase().includes('channel') ||
+          msg.toLowerCase().includes('no longer be used')
+
+        setError(
+          isChannelClosed
+            ? 'Lace extension connection closed by browser. Please click the Lace extension icon in your browser toolbar to unlock/wake it, then try again.'
+            : `Verification failed: ${msg}`,
+        )
         return null
       } finally {
         setIsProving(false)
@@ -250,12 +231,10 @@ export function useMidnight(): UseMidnightReturn {
     isProving,
     proofStep,
     lastResult,
-    isDemoMode,
+    lastResultDetail,
     walletType,
     isLaceInstalled,
-    isMidnightLaceInstalled,
     connect,
-    connectDemo,
     disconnect,
     verifyThreshold,
   }
@@ -263,6 +242,14 @@ export function useMidnight(): UseMidnightReturn {
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex
+  if (clean.length % 2 !== 0) {
+    throw new Error(`Invalid hex string length: ${hex}`)
+  }
+  const bytes = new Uint8Array(clean.length / 2)
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes[i / 2] = parseInt(clean.slice(i, i + 2), 16)
+  }
+  return bytes
 }

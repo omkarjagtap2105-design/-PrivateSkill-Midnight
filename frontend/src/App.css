@@ -785,3 +785,98 @@ a:hover { text-decoration: underline; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===============================
+   CIRCUIT CALL — ADDITIONS
+   (demo banner, badges, tx info)
+   =============================== */
+
+.circuit-call__demo-banner {
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.40);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #fbbf24;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  transform: translateZ(20px);
+}
+
+.circuit-call__private-note {
+  background: rgba(16,185,129,0.07);
+  border: 1px solid rgba(16,185,129,0.20);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.9rem;
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.60);
+  line-height: 1.5;
+}
+
+.circuit-call__result-header {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+}
+
+.circuit-call__result-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.circuit-call__badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 50px;
+  width: fit-content;
+}
+
+.circuit-call__badge--real {
+  background: rgba(16,185,129,0.15);
+  border: 1px solid rgba(16,185,129,0.40);
+  color: #34d399;
+}
+
+.circuit-call__badge--demo {
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.35);
+  color: #fbbf24;
+}
+
+.circuit-call__tx-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.circuit-call__tx-label {
+  color: rgba(255,255,255,0.45);
+  font-weight: 600;
+}
+
+.circuit-call__tx-link {
+  color: #9b7cff;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.circuit-call__tx-link:hover {
+  color: #c4b5fd;
+}
+
+.circuit-call__privacy-confirmed {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.50);
+}
+
+.circuit-call__spinner--small {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}

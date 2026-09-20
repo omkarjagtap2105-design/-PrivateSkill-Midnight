@@ -45,6 +45,29 @@ The flow:
 3. The credential holder responds with a **zero-knowledge proof** — the circuit verifies `score ≥ 70` and records only `true/false` on-chain.
 4. The employer sees "passed" or "failed." They never see the exact score, the certificate ID, or who the holder is.
 
+## Real Preprod Circuit Flow
+
+The frontend executes real zero-knowledge privacy verification directly against the Midnight Preprod contract (`d32cf38d59c716cee438d44e63386df8973aa56b0dda6c6b32751f59e9d5caf2`):
+
+```
+React Frontend (UI)
+ └─ Lace Wallet (window.midnight.mnLace DApp Connector)
+      └─ Midnight Preprod Network
+           └─ Deployed PrivateSkill Contract
+                └─ Compact Circuit (`verifySkillThreshold`)
+                     ├─ ZK Proof Generation (local proof-server / wallet)
+                     └─ On-chain Verification (Boolean result disclosed, score remains secret)
+```
+
+### Verification States & Lifecycle
+1. **Preparing verification:** Loads contract module (`/contracts/private-skill/index.js`), initializes ZK config provider (`/zk`) and providers.
+2. **Generating proof:** Proves inside local ZK circuit (`verifySkillThreshold`) that `score >= threshold` without disclosing `score`, `certificateId`, `holderId`, or `opening`.
+3. **Submitting transaction:** Sends balanced transaction to Midnight Preprod network via Lace DApp Connector.
+4. **Waiting for confirmation:** Awaits on-chain confirmation and indexer block synchronization.
+5. **Success / Failed:** Displays true on-chain result and transaction hash linked to Midnight Preprod explorer.
+
+> Note: If Lace is unavailable, the application displays a clear error instead of silently switching to Demo Mode. Demo Mode is kept strictly behind an explicit user selection.
+
 ## Privacy Model
 
 ### Public (visible on-chain to everyone)
@@ -201,6 +224,14 @@ PrivateSkill was built to demonstrate this end-to-end: a credential is issued wi
 | `screenshots/lace-connected.png` | Live app at https://privateskill-midnight.vercel.app with Lace wallet connected |
 | `screenshots/circuit-success.png` | Verification form with "Generating Proof…" or "Submitting…" in progress |
 | `screenshots/verification-result.png` | Live app showing ✅ "Skill verified — threshold met" result banner |
+
+### Captured Evidence
+
+![Compile Success](screenshots/compile-success.png)
+![Tests Passing](screenshots/tests-passing.png)
+![Lace Connected](screenshots/lace-connected.png)
+![Circuit Success](screenshots/circuit-success.png)
+![Verification Result](screenshots/verification-result.png)
 
 ### Test Suite — 11 Tests Passing
 
